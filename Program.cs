@@ -82,6 +82,7 @@ builder.Services.AddAuthentication(x =>
 
 // 5. Dependency Injection
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+builder.Services.AddScoped<RecruitmentSystem.Services.IAuthService, RecruitmentSystem.Services.AuthService>();
 
 var app = builder.Build();
 
@@ -93,10 +94,11 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseHttpsRedirection();
-
-// Use CORS
+// Use CORS (Bắt buộc đặt trước Routing/Controllers)
 app.UseCors("AllowAll");
+
+// Tắt HttpsRedirection khi test local bằng HTTP để tránh lỗi Failed to fetch do CORS redirect
+// app.UseHttpsRedirection();
 
 // Use Authentication & Authorization
 app.UseAuthentication();
