@@ -83,6 +83,15 @@ builder.Services.AddAuthentication(x =>
 // 5. Dependency Injection
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddScoped<RecruitmentSystem.Services.IAuthService, RecruitmentSystem.Services.AuthService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IUngVienService, RecruitmentSystem.Services.UngVienService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.ICVService, RecruitmentSystem.Services.CVService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IDoanhNghiepService, RecruitmentSystem.Services.DoanhNghiepService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.ITinTuyenDungService, RecruitmentSystem.Services.TinTuyenDungService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IUngTuyenService, RecruitmentSystem.Services.UngTuyenService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.ILichPhongVanService, RecruitmentSystem.Services.LichPhongVanService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IThongBaoService, RecruitmentSystem.Services.ThongBaoService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IDanhGiaService, RecruitmentSystem.Services.DanhGiaService>();
+builder.Services.AddScoped<RecruitmentSystem.Services.IAdminService, RecruitmentSystem.Services.AdminService>();
 
 var app = builder.Build();
 
