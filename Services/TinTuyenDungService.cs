@@ -25,29 +25,30 @@ namespace RecruitmentSystem.Services
             }
         }
 
-        public async Task<ApiResponse<object>> FilterJobsAsync(FilterTinTuyenDungDto filter)
+        public async Task<ApiResponse<object>> GetTinTuyenDungsAsync(FilterTinTuyenDungDto filter)
         {
             try
             {
                 using (var connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    
-                    var filters = new List<string> { "TrangThaiTin = 'DaDuyet'", "(HanNopHoSo >= GETDATE() OR HanNopHoSo IS NULL)" };
-                    
-                    if (!string.IsNullOrEmpty(filter.TuKhoa)) filters.Add("TieuDe LIKE @TuKhoa");
-                    if (filter.MaNganhNghe.HasValue) filters.Add("MaNganhNghe = @MaNganhNghe");
-                    if (filter.MaViTri.HasValue) filters.Add("MaViTri = @MaViTri");
-                    if (filter.MaDiaDiem.HasValue) filters.Add("MaDiaDiem = @MaDiaDiem");
-                    if (!string.IsNullOrEmpty(filter.HinhThucLamViec)) filters.Add("HinhThucLamViec = @HinhThucLamViec");
-                    if (filter.LuongMin.HasValue) filters.Add("LuongToiThieu >= @LuongMin");
-                    if (filter.LuongMax.HasValue) filters.Add("LuongToiDa <= @LuongMax");
-                    if (filter.SoNamKinhNghiem.HasValue) filters.Add("SoNamKinhNghiemToiThieu <= @SoNamKinhNghiem");
 
-                    string whereClause = string.Join(" AND ", filters);
-                    
-                    // Count Total
-                    string countQuery = $"SELECT COUNT(1) FROM TinTuyenDung WHERE {whereClause}";
+                    string whereClause = "1=1";
+                    if (!string.IsNullOrEmpty(filter.TuKhoa)) whereClause += " AND (TieuDe LIKE @TuKhoa OR d.TenCongTy LIKE @TuKhoa)";
+                    if (filter.MaNganhNghe.HasValue) whereClause += " AND t.MaNganhNghe = @MaNganhNghe";
+                    if (filter.MaViTri.HasValue) whereClause += " AND t.MaViTri = @MaViTri";
+                    if (filter.MaDiaDiem.HasValue) whereClause += " AND t.MaDiaDiem = @MaDiaDiem";
+                    if (!string.IsNullOrEmpty(filter.HinhThucLamViec)) whereClause += " AND t.HinhThucLamViec = @HinhThucLamViec";
+                    if (filter.LuongMin.HasValue) whereClause += " AND t.LuongToiThieu >= @LuongMin";
+                    if (filter.LuongMax.HasValue) whereClause += " AND t.LuongToiDa <= @LuongMax";
+                    if (filter.SoNamKinhNghiem.HasValue) whereClause += " AND t.SoNamKinhNghiemToiThieu <= @SoNamKinhNghiem";
+
+                    string countQuery = $@"
+                        SELECT COUNT(1) 
+                        FROM TinTuyenDung t 
+                        LEFT JOIN HoSoDoanhNghiep d ON t.MaDoanhNghiep = d.MaDoanhNghiep 
+                        WHERE {whereClause}";
+
                     int totalItems = 0;
                     using (var cmd = new SqlCommand(countQuery, connection))
                     {
@@ -63,18 +64,26 @@ namespace RecruitmentSystem.Services
                         totalItems = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                     }
 
-                    int totalPages = (int)Math.Ceiling(totalItems / (double)filter.PageSize);
+                    int totalPages = totalItems == 0 ? 0 : (int)Math.Ceiling(totalItems / (double)filter.PageSize);
                     int offset = (filter.Page - 1) * filter.PageSize;
 
                     string dataQuery = $@"
-                        SELECT t.*, d.TenCongTy, d.DuongDanLogo 
+                        SELECT 
+                            t.MaTinTuyenDung, t.TieuDe, t.LuongToiThieu, t.LuongToiDa, t.HanNopHoSo,
+                            t.MaNganhNghe, c1.TenDanhMuc AS TenNganhNghe,
+                            t.MaViTri, c2.TenDanhMuc AS TenViTri,
+                            t.MaDiaDiem, c3.TenDanhMuc AS TenDiaDiem,
+                            d.TenCongTy, d.DuongDanLogo 
                         FROM TinTuyenDung t
                         LEFT JOIN HoSoDoanhNghiep d ON t.MaDoanhNghiep = d.MaDoanhNghiep
+                        LEFT JOIN DanhMuc c1 ON t.MaNganhNghe = c1.MaDanhMuc
+                        LEFT JOIN DanhMuc c2 ON t.MaViTri = c2.MaDanhMuc
+                        LEFT JOIN DanhMuc c3 ON t.MaDiaDiem = c3.MaDanhMuc
                         WHERE {whereClause}
                         ORDER BY t.NgayDang DESC
                         OFFSET {offset} ROWS FETCH NEXT {filter.PageSize} ROWS ONLY";
 
-                    var items = new List<Dictionary<string, object>>();
+                    var items = new List<JobItemDto>();
                     using (var cmd = new SqlCommand(dataQuery, connection))
                     {
                         if (!string.IsNullOrEmpty(filter.TuKhoa)) cmd.Parameters.AddWithValue("@TuKhoa", "%" + filter.TuKhoa + "%");
@@ -90,18 +99,39 @@ namespace RecruitmentSystem.Services
                         {
                             while (await reader.ReadAsync())
                             {
-                                var row = new Dictionary<string, object>();
-                                for (int i = 0; i < reader.FieldCount; i++)
-                                    row[reader.GetName(i)] = reader.IsDBNull(i) ? null! : reader.GetValue(i);
-                                items.Add(row);
+                                items.Add(new JobItemDto
+                                {
+                                    MaTinTuyenDung = reader["MaTinTuyenDung"] != DBNull.Value ? Convert.ToInt32(reader["MaTinTuyenDung"]) : 0,
+                                    TieuDe = reader["TieuDe"]?.ToString() ?? "",
+                                    TenCongTy = reader["TenCongTy"]?.ToString(),
+                                    DuongDanLogo = reader["DuongDanLogo"]?.ToString(),
+                                    MaNganhNghe = reader["MaNganhNghe"] != DBNull.Value ? Convert.ToInt32(reader["MaNganhNghe"]) : null,
+                                    TenNganhNghe = reader["TenNganhNghe"]?.ToString() ?? "",
+                                    MaViTri = reader["MaViTri"] != DBNull.Value ? Convert.ToInt32(reader["MaViTri"]) : null,
+                                    TenViTri = reader["TenViTri"]?.ToString() ?? "",
+                                    MaDiaDiem = reader["MaDiaDiem"] != DBNull.Value ? Convert.ToInt32(reader["MaDiaDiem"]) : null,
+                                    TenDiaDiem = reader["TenDiaDiem"]?.ToString() ?? "",
+                                    LuongToiThieu = reader["LuongToiThieu"] != DBNull.Value ? Convert.ToDecimal(reader["LuongToiThieu"]) : null,
+                                    LuongToiDa = reader["LuongToiDa"] != DBNull.Value ? Convert.ToDecimal(reader["LuongToiDa"]) : null,
+                                    HanNopHoSo = reader["HanNopHoSo"] != DBNull.Value ? Convert.ToDateTime(reader["HanNopHoSo"]) : null
+                                });
                             }
                         }
                     }
 
+                    var pagedResult = new PagedResult<JobItemDto>
+                    {
+                        Items = items,
+                        PageIndex = filter.Page,
+                        PageSize = filter.PageSize,
+                        TotalRecords = totalItems,
+                        TotalPages = totalPages
+                    };
+
                     return new ApiResponse<object>
                     {
                         Success = true, StatusCode = 200, Message = "Thành công",
-                        Data = new { Items = items, TotalPages = totalPages, TotalItems = totalItems }
+                        Data = pagedResult
                     };
                 }
             }

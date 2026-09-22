@@ -23,10 +23,11 @@ namespace RecruitmentSystem.Controllers
             return int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
         }
 
+        [AllowAnonymous]
         [HttpGet]
-        public async Task<IActionResult> FilterJobs([FromQuery] FilterTinTuyenDungDto filter)
+        public async Task<IActionResult> GetJobs([FromQuery] FilterTinTuyenDungDto filter)
         {
-            var result = await _service.FilterJobsAsync(filter);
+            var result = await _service.GetTinTuyenDungsAsync(filter);
             return StatusCode(result.StatusCode, result);
         }
 
