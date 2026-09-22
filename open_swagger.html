@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chuyển hướng đến Swagger API</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            text-align: center;
+            max-width: 480px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        h1 { margin-bottom: 10px; font-size: 24px; }
+        p { color: #e0e0e0; margin-bottom: 25px; line-height: 1.5; }
+        .btn {
+            display: inline-block;
+            background-color: #85ea2d;
+            color: #1a1a1a;
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(133, 234, 45, 0.4);
+        }
+        .btn:hover {
+            background-color: #6ec820;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(133, 234, 45, 0.6);
+        }
+        .footer { margin-top: 20px; font-size: 12px; color: #a0a0a0; }
+    </style>
+    <script>
+        // Tự động chuyển hướng đến Swagger sau 1.5 giây
+        setTimeout(function() {
+            window.location.href = "http://localhost:5000/swagger";
+        }, 1500);
+    </script>
+</head>
+<body>
+    <div class="card">
+        <h1>🚀 Recruitment System Web API</h1>
+        <p>Đang tự động chuyển hướng bạn đến giao diện thử nghiệm <strong>Swagger UI</strong>...</p>
+        <a href="http://localhost:5000/swagger" class="btn">Mở Swagger Ngay (http://localhost:5000/swagger)</a>
+        <div class="footer">Lưu ý: Hãy chắc chắn bạn đã kích hoạt Server (.NET 8.0)</div>
+    </div>
+</body>
+</html>

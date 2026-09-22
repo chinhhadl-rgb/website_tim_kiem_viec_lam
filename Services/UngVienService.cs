@@ -495,5 +495,112 @@ namespace RecruitmentSystem.Services
             }
         }
         #endregion
+
+        #region Delete Extensions
+        public async Task<ApiResponse<bool>> DeleteKyNangAsync(int maTaiKhoan, int maKyNang)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    int maUngVien = await GetOrCreateMaUngVienAsync(connection, maTaiKhoan);
+
+                    string query = "DELETE FROM KyNangUngVien WHERE MaUngVien = @MaUngVien AND MaKyNang = @MaKyNang";
+                    using (var cmd = new SqlCommand(query, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@MaUngVien", maUngVien);
+                        cmd.Parameters.AddWithValue("@MaKyNang", maKyNang);
+                        int rows = await cmd.ExecuteNonQueryAsync();
+
+                        if (rows == 0)
+                        {
+                            return new ApiResponse<bool> { Success = false, StatusCode = 404, Message = "Không tìm thấy kỹ năng này.", Data = false };
+                        }
+                    }
+                    return new ApiResponse<bool> { Success = true, StatusCode = 200, Message = "Xóa kỹ năng thành công.", Data = true };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<bool> { Success = false, StatusCode = 500, Message = "Lỗi hệ thống.", Data = false, Errors = new[] { ex.Message } };
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteHocVanAsync(int maTaiKhoan, int idHocVan)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    int maUngVien = await GetOrCreateMaUngVienAsync(connection, maTaiKhoan);
+
+                    // Đọc DanhSachHocVan hiện tại (chuỗi JSON)
+                    string querySelect = "SELECT DanhSachHocVan FROM HoSoUngVien WHERE MaUngVien = @MaUngVien";
+                    string? currentJson = null;
+
+                    using (var cmd = new SqlCommand(querySelect, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@MaUngVien", maUngVien);
+                        var result = await cmd.ExecuteScalarAsync();
+                        if (result != null && result != DBNull.Value)
+                        {
+                            currentJson = result.ToString();
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(currentJson))
+                    {
+                        return new ApiResponse<bool> { Success = false, StatusCode = 404, Message = "Không tìm thấy học vấn.", Data = false };
+                    }
+
+                    // Sử dụng System.Text.Json.Nodes để parse JSON Array
+                    var jsonArray = System.Text.Json.Nodes.JsonNode.Parse(currentJson) as System.Text.Json.Nodes.JsonArray;
+                    if (jsonArray == null)
+                    {
+                        return new ApiResponse<bool> { Success = false, StatusCode = 404, Message = "Dữ liệu học vấn không hợp lệ.", Data = false };
+                    }
+
+                    bool found = false;
+                    for (int i = 0; i < jsonArray.Count; i++)
+                    {
+                        var item = jsonArray[i];
+                        if (item != null)
+                        {
+                            // Kiểm tra các field phổ biến thường dùng làm ID
+                            var idNode = item["id"] ?? item["Id"] ?? item["maHocVan"] ?? item["MaHocVan"];
+                            if (idNode != null && idNode.GetValue<int>() == idHocVan)
+                            {
+                                jsonArray.RemoveAt(i);
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        return new ApiResponse<bool> { Success = false, StatusCode = 404, Message = "Không tìm thấy học vấn với ID này.", Data = false };
+                    }
+
+                    // Cập nhật lại vào DB
+                    string updateQuery = "UPDATE HoSoUngVien SET DanhSachHocVan = @DanhSachHocVan WHERE MaUngVien = @MaUngVien";
+                    using (var cmd = new SqlCommand(updateQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@DanhSachHocVan", jsonArray.ToJsonString());
+                        cmd.Parameters.AddWithValue("@MaUngVien", maUngVien);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    return new ApiResponse<bool> { Success = true, StatusCode = 200, Message = "Xóa học vấn thành công.", Data = true };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<bool> { Success = false, StatusCode = 500, Message = "Lỗi hệ thống.", Data = false, Errors = new[] { ex.Message } };
+            }
+        }
+        #endregion
     }
 }

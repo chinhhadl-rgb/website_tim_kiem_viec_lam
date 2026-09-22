@@ -96,5 +96,61 @@ namespace RecruitmentSystem.Controllers
             var result = await _authService.LoginAsync(dto);
             return StatusCode(result.StatusCode, result);
         }
+
+        /// <summary>
+        /// 4. Gửi lại mã OTP qua Email
+        /// </summary>
+        [HttpPost("resend-otp")]
+        public async Task<IActionResult> ResendOtp([FromQuery] string email)
+        {
+            if (string.IsNullOrEmpty(email))
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 400,
+                    Message = "Email không được để trống."
+                });
+            }
+
+            var result = await _authService.ResendOtpAsync(email);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [HttpPost("quen-mat-khau")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 400,
+                    Message = "Dữ liệu không hợp lệ.",
+                    Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToArray()
+                });
+            }
+
+            var result = await _authService.ForgotPasswordAsync(dto);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [HttpPost("dat-lai-mat-khau")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 400,
+                    Message = "Dữ liệu không hợp lệ.",
+                    Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToArray()
+                });
+            }
+
+            var result = await _authService.ResetPasswordAsync(dto);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }

@@ -82,6 +82,7 @@ builder.Services.AddAuthentication(x =>
 
 // 5. Dependency Injection
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+builder.Services.AddTransient<RecruitmentSystem.Services.IEmailService, RecruitmentSystem.Services.EmailService>();
 builder.Services.AddScoped<RecruitmentSystem.Services.IAuthService, RecruitmentSystem.Services.AuthService>();
 builder.Services.AddScoped<RecruitmentSystem.Services.IUngVienService, RecruitmentSystem.Services.UngVienService>();
 builder.Services.AddScoped<RecruitmentSystem.Services.ICVService, RecruitmentSystem.Services.CVService>();

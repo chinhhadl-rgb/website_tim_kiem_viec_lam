@@ -20,5 +20,8 @@ namespace RecruitmentSystem.Services
         Task<ApiResponse<object>> FollowCompanyAsync(int maTaiKhoan, int maDoanhNghiep);
         Task<ApiResponse<object>> UnfollowCompanyAsync(int maTaiKhoan, int maDoanhNghiep);
         Task<ApiResponse<object>> GetFollowedCompaniesAsync(int maTaiKhoan);
+
+        Task<ApiResponse<bool>> DeleteKyNangAsync(int maTaiKhoan, int maKyNang);
+        Task<ApiResponse<bool>> DeleteHocVanAsync(int maTaiKhoan, int idHocVan);
     }
 }

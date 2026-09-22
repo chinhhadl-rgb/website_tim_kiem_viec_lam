@@ -119,5 +119,21 @@ namespace RecruitmentSystem.Controllers
             return StatusCode(result.StatusCode, result);
         }
         #endregion
+
+        #region Delete Extensions
+        [HttpDelete("ky-nang/{id}")]
+        public async Task<IActionResult> DeleteKyNang(int id)
+        {
+            var result = await _ungVienService.DeleteKyNangAsync(GetMaTaiKhoan(), id);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [HttpDelete("hoc-van/{id}")]
+        public async Task<IActionResult> DeleteHocVan(int id)
+        {
+            var result = await _ungVienService.DeleteHocVanAsync(GetMaTaiKhoan(), id);
+            return StatusCode(result.StatusCode, result);
+        }
+        #endregion
     }
 }

@@ -13,11 +13,13 @@ namespace RecruitmentSystem.Services
     {
         private readonly string _connectionString;
         private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
 
-        public AuthService(IConfiguration configuration)
+        public AuthService(IConfiguration configuration, IEmailService emailService)
         {
             _configuration = configuration;
             _connectionString = configuration.GetConnectionString("DefaultConnection") ?? "";
+            _emailService = emailService;
         }
 
         public async Task<ApiResponse<object>> RegisterAsync(RegisterDto dto)
@@ -71,12 +73,15 @@ namespace RecruitmentSystem.Services
                         await insertCmd.ExecuteNonQueryAsync();
                     }
 
+                    // 5. Gửi mã OTP trực tiếp về Email
+                    await _emailService.SendOtpEmailAsync(dto.Email, otpCode, "xác thực đăng ký tài khoản");
+
                     return new ApiResponse<object>
                     {
                         Success = true,
                         StatusCode = 201,
-                        Message = $"Đăng ký tài khoản thành công. Mã OTP xác thực của bạn là: {otpCode} (Hết hạn trong 5 phút).",
-                        Data = new { email = dto.Email, otpCode = otpCode },
+                        Message = $"Đăng ký tài khoản thành công. Mã OTP 6 số đã được gửi trực tiếp về email {dto.Email} (Hết hạn trong 5 phút).",
+                        Data = new { email = dto.Email },
                         Errors = null
                     };
                 }
@@ -255,14 +260,29 @@ namespace RecruitmentSystem.Services
                         };
                     }
 
-                    // Kiểm tra kích hoạt tài khoản
+                    // Nếu chưa kích hoạt tài khoản, sinh lại OTP và tự động gửi email cho người dùng
                     if (!trangThaiHoatDong)
                     {
+                        string newOtp = new Random().Next(100000, 999999).ToString();
+                        DateTime newExpiry = DateTime.Now.AddMinutes(5);
+
+                        string updateOtpQuery = "UPDATE TaiKhoan SET MaOTP = @MaOTP, ThoiHanOTP = @ThoiHanOTP WHERE MaTaiKhoan = @MaTaiKhoan";
+                        using (var updateCmd = new SqlCommand(updateOtpQuery, connection))
+                        {
+                            updateCmd.Parameters.AddWithValue("@MaOTP", newOtp);
+                            updateCmd.Parameters.AddWithValue("@ThoiHanOTP", newExpiry);
+                            updateCmd.Parameters.AddWithValue("@MaTaiKhoan", maTaiKhoan);
+                            await updateCmd.ExecuteNonQueryAsync();
+                        }
+
+                        // Gửi Mail OTP
+                        await _emailService.SendOtpEmailAsync(email, newOtp, "kích hoạt tài khoản đăng nhập");
+
                         return new ApiResponse<TokenResponseDto>
                         {
                             Success = false,
                             StatusCode = 403,
-                            Message = "Tài khoản chưa được xác thực OTP. Vui lòng xác thực trước khi đăng nhập.",
+                            Message = $"Tài khoản chưa được xác thực. Mã OTP kích hoạt mới đã được gửi về email {email}.",
                             Data = null,
                             Errors = new[] { "Tài khoản chưa kích hoạt" }
                         };
@@ -333,6 +353,218 @@ namespace RecruitmentSystem.Services
                     StatusCode = 500,
                     Message = "Lỗi hệ thống khi đăng nhập.",
                     Data = null,
+                    Errors = new[] { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<object>> ResendOtpAsync(string email)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    string selectQuery = "SELECT MaTaiKhoan, TrangThaiHoatDong FROM TaiKhoan WHERE Email = @Email";
+                    int maTaiKhoan = 0;
+                    bool trangThaiHoatDong = false;
+
+                    using (var cmd = new SqlCommand(selectQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@Email", email);
+                        using (var reader = await cmd.ExecuteReaderAsync())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                return new ApiResponse<object>
+                                {
+                                    Success = false,
+                                    StatusCode = 404,
+                                    Message = "Không tìm thấy tài khoản với email này."
+                                };
+                            }
+                            await reader.ReadAsync();
+                            maTaiKhoan = reader.GetInt32(0);
+                            trangThaiHoatDong = reader.GetBoolean(1);
+                        }
+                    }
+
+                    if (trangThaiHoatDong)
+                    {
+                        return new ApiResponse<object>
+                        {
+                            Success = false,
+                            StatusCode = 400,
+                            Message = "Tài khoản này đã được xác thực trước đó."
+                        };
+                    }
+
+                    string otpCode = new Random().Next(100000, 999999).ToString();
+                    DateTime otpExpiry = DateTime.Now.AddMinutes(5);
+
+                    string updateQuery = "UPDATE TaiKhoan SET MaOTP = @MaOTP, ThoiHanOTP = @ThoiHanOTP WHERE MaTaiKhoan = @MaTaiKhoan";
+                    using (var cmd = new SqlCommand(updateQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@MaOTP", otpCode);
+                        cmd.Parameters.AddWithValue("@ThoiHanOTP", otpExpiry);
+                        cmd.Parameters.AddWithValue("@MaTaiKhoan", maTaiKhoan);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    await _emailService.SendOtpEmailAsync(email, otpCode, "xác thực lại tài khoản");
+
+                    return new ApiResponse<object>
+                    {
+                        Success = true,
+                        StatusCode = 200,
+                        Message = $"Mã OTP mới đã được gửi lại về email {email}."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 500,
+                    Message = "Lỗi hệ thống khi gửi lại mã OTP.",
+                    Errors = new[] { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<object>> ForgotPasswordAsync(ForgotPasswordDto dto)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    string selectQuery = "SELECT MaTaiKhoan FROM TaiKhoan WHERE Email = @Email";
+                    int maTaiKhoan = 0;
+
+                    using (var cmd = new SqlCommand(selectQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@Email", dto.Email);
+                        var result = await cmd.ExecuteScalarAsync();
+                        if (result == null || result == DBNull.Value)
+                        {
+                            return new ApiResponse<object>
+                            {
+                                Success = false,
+                                StatusCode = 404,
+                                Message = "Email không tồn tại."
+                            };
+                        }
+                        maTaiKhoan = Convert.ToInt32(result);
+                    }
+
+                    string otpCode = new Random().Next(100000, 999999).ToString();
+                    DateTime otpExpiry = DateTime.Now.AddMinutes(5);
+
+                    string updateQuery = "UPDATE TaiKhoan SET MaOTP = @MaOTP, ThoiHanOTP = @ThoiHanOTP WHERE MaTaiKhoan = @MaTaiKhoan";
+                    using (var cmd = new SqlCommand(updateQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@MaOTP", otpCode);
+                        cmd.Parameters.AddWithValue("@ThoiHanOTP", otpExpiry);
+                        cmd.Parameters.AddWithValue("@MaTaiKhoan", maTaiKhoan);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    await _emailService.SendOtpEmailAsync(dto.Email, otpCode, "quên mật khẩu");
+
+                    return new ApiResponse<object>
+                    {
+                        Success = true,
+                        StatusCode = 200,
+                        Message = "Yêu cầu quên mật khẩu thành công.",
+                        Data = new { email = dto.Email, otpCode = otpCode }
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 500,
+                    Message = "Lỗi hệ thống.",
+                    Errors = new[] { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<object>> ResetPasswordAsync(ResetPasswordDto dto)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    string selectQuery = "SELECT MaTaiKhoan, MaOTP, ThoiHanOTP FROM TaiKhoan WHERE Email = @Email";
+                    int maTaiKhoan = 0;
+                    string? dbOtp = null;
+                    DateTime? thoiHanOTP = null;
+
+                    using (var cmd = new SqlCommand(selectQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@Email", dto.Email);
+                        using (var reader = await cmd.ExecuteReaderAsync())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                return new ApiResponse<object>
+                                {
+                                    Success = false,
+                                    StatusCode = 404,
+                                    Message = "Email không tồn tại."
+                                };
+                            }
+                            await reader.ReadAsync();
+                            maTaiKhoan = reader.GetInt32(0);
+                            dbOtp = reader.IsDBNull(1) ? null : reader.GetString(1);
+                            thoiHanOTP = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
+                        }
+                    }
+
+                    if (dbOtp != dto.MaOTP || thoiHanOTP == null || thoiHanOTP < DateTime.Now)
+                    {
+                        return new ApiResponse<object>
+                        {
+                            Success = false,
+                            StatusCode = 400,
+                            Message = "Mã OTP không chính xác hoặc đã hết hạn."
+                        };
+                    }
+
+                    string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.MatKhauMoi);
+
+                    string updateQuery = "UPDATE TaiKhoan SET MatKhau = @MatKhau, MaOTP = NULL, ThoiHanOTP = NULL WHERE MaTaiKhoan = @MaTaiKhoan";
+                    using (var cmd = new SqlCommand(updateQuery, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@MatKhau", passwordHash);
+                        cmd.Parameters.AddWithValue("@MaTaiKhoan", maTaiKhoan);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    return new ApiResponse<object>
+                    {
+                        Success = true,
+                        StatusCode = 200,
+                        Message = "Đặt lại mật khẩu thành công."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 500,
+                    Message = "Lỗi hệ thống.",
                     Errors = new[] { ex.Message }
                 };
             }

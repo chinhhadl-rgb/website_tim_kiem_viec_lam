@@ -49,11 +49,24 @@ Mọi API (dù thành công 2xx hay thất bại 4xx/5xx) **ĐỀU TRẢ VỀ DU
   {
     "success": true,
     "statusCode": 201,
-    "message": "Đăng ký tài khoản thành công. Mã OTP xác thực của bạn là: 849201 (Hết hạn trong 5 phút).",
+    "message": "Đăng ký tài khoản thành công. Mã OTP 6 số đã được gửi trực tiếp về email ungvien1@gmail.com (Hết hạn trong 5 phút).",
     "data": {
-      "email": "ungvien1@gmail.com",
-      "otpCode": "849201"
+      "email": "ungvien1@gmail.com"
     },
+    "errors": null
+  }
+  ```
+
+#### 1b. Gửi lại mã OTP qua Email (`POST /api/v1/auth/resend-otp?email=user@gmail.com`)
+* **Phân quyền**: Public
+* **Query Parameter**: `email` (string, required)
+* **Response Data**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "message": "Mã OTP mới đã được gửi lại về email user@gmail.com.",
+    "data": null,
     "errors": null
   }
   ```
